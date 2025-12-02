@@ -1,0 +1,324 @@
+openapi: 3.0.0
+info:
+  title: Item Comparison API
+  description: |
+    A backend API that returns product information used for an item comparison feature.
+    Built with Go following Clean Architecture principles.
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@example.com
+
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Local development server
+
+tags:
+  - name: items
+    description: Item management and comparison operations
+
+paths:
+  /items:
+    get:
+      tags:
+        - items
+      summary: Get all items
+      description: Retrieves a list of all available items in the system
+      operationId: getAllItems
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Item'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /items/{id}:
+    get:
+      tags:
+        - items
+      summary: Get item by ID
+      description: Retrieves a single item by its unique identifier
+      operationId: getItemByID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Item unique identifier
+          schema:
+            type: integer
+            format: int64
+            example: 1
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Item'
+        '400':
+          description: Bad request (invalid ID format)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Item not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /items/compare:
+    post:
+      tags:
+        - items
+      summary: Compare items
+      description: |
+        Compares multiple items and returns detailed comparison information including:
+        - Price range (min/max)
+        - Rating range (min/max)
+        - Common specifications across all items
+        - Unique specifications per item
+      operationId: compareItems
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompareRequest'
+            example:
+              item_ids: [1, 2, 3]
+      responses:
+        '200':
+          description: Successful comparison
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompareResponse'
+        '400':
+          description: Bad request (invalid request body or validation error)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Unprocessable Entity (error de validación de negocio, ej. menos de 2 IDs)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: One or more items not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    Item:
+      type: object
+      required:
+        - id
+        - name
+        - image_url
+        - description
+        - price
+        - rating
+        - specifications
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Unique item identifier
+          example: 1
+        name:
+          type: string
+          description: Item name
+          example: "MacBook Pro 16\""
+        image_url:
+          type: string
+          format: uri
+          description: URL to the item's image
+          example: "https://example.com/images/macbook-pro.jpg"
+        description:
+          type: string
+          description: Item description
+          example: "Powerful laptop for professionals with M2 Pro chip"
+        price:
+          type: number
+          format: float
+          description: Item price in USD
+          example: 2499.99
+        rating:
+          type: number
+          format: float
+          description: Item rating (0.0 to 5.0)
+          example: 4.8
+        specifications:
+          type: object
+          additionalProperties: true
+          description: Item specifications as key-value pairs
+          example:
+            processor: "Apple M2 Pro"
+            memory: "16GB"
+            storage: "512GB SSD"
+            display: "16.2-inch Liquid Retina XDR"
+
+    CompareRequest:
+      type: object
+      required:
+        - item_ids
+      properties:
+        item_ids:
+          type: array
+          items:
+            type: integer
+            format: int64
+          minItems: 2
+          maxItems: 10
+          description: Array of item IDs to compare (minimum 2, maximum 10)
+          example: [1, 2, 3]
+
+    CompareResponse:
+      type: object
+      required:
+        - items
+        - comparison
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Item'
+          description: Array of items being compared
+        comparison:
+          $ref: '#/components/schemas/ComparisonDetails'
+
+    ComparisonDetails:
+      type: object
+      required:
+        - price_range
+        - rating_range
+        - common_specs
+        - unique_specs
+      properties:
+        price_range:
+          $ref: '#/components/schemas/PriceRange'
+        rating_range:
+          $ref: '#/components/schemas/RatingRange'
+        common_specs:
+          type: array
+          items:
+            type: string
+          description: Specification keys that are common to all items
+          example: ["processor", "memory", "storage"]
+        unique_specs:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          description: Specification keys that are unique to each item (keyed by item ID)
+          example:
+            "1": ["touchscreen"]
+            "2": ["durability"]
+
+    PriceRange:
+      type: object
+      required:
+        - min
+        - max
+      properties:
+        min:
+          type: number
+          format: float
+          description: Minimum price among compared items
+          example: 1499.99
+        max:
+          type: number
+          format: float
+          description: Maximum price among compared items
+          example: 2499.99
+
+    RatingRange:
+      type: object
+      required:
+        - min
+        - max
+      properties:
+        min:
+          type: number
+          format: float
+          description: Minimum rating among compared items
+          example: 4.4
+        max:
+          type: number
+          format: float
+          description: Maximum rating among compared items
+          example: 4.8
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+        - code
+      properties:
+        error:
+          type: boolean
+          description: Always true for error responses
+          example: true
+        message:
+          type: string
+          description: Human-readable error message
+          example: "Item with id 999 not found"
+        code:
+          type: string
+          description: Error code for programmatic error handling
+          enum:
+            - NOT_FOUND
+            - BAD_REQUEST
+            - INTERNAL_SERVER_ERROR
+            - VALIDATION_ERROR
+            - TOO_MANY_REQUESTS
+          example: "NOT_FOUND"
+
